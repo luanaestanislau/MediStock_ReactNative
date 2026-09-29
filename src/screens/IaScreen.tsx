@@ -1,20 +1,31 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AiBadge, Badge } from '../components/Badge';
+import { DemandChart } from '../components/DemandChart';
+import { ErrorBanner } from '../components/ErrorBanner';
 import { ScoreBar } from '../components/ScoreBar';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
 
 export function IaScreen() {
-  const { analysis, items } = useApp();
+  const { analysis, items, loading, error, clearError, refreshData } = useApp();
 
   const nomeDoItem = (itemId: string) => items.find((item) => item.id === itemId)?.nome ?? itemId;
+  const rotuloDoItem = (itemId: string) => {
+    const item = items.find((entry) => entry.id === itemId);
+    return item ? `${item.nome} · ${item.hospitalNome}` : itemId;
+  };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshData} tintColor={colors.primarySoft} />}
+      >
+        <ErrorBanner message={error} onRetry={refreshData} onDismiss={clearError} />
         <View style={styles.header}>
           <Text style={styles.title}>IA</Text>
           <AiBadge />
@@ -41,6 +52,21 @@ export function IaScreen() {
             <Text style={styles.statLabel}>Previsões geradas</Text>
           </View>
         </View>
+
+        {analysis.previsoes.length > 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Previsão de demanda</Text>
+            <View style={{ height: 12 }} />
+            <DemandChart
+              data={analysis.previsoes.slice(0, 6).map((previsao) => ({
+                id: previsao.itemId,
+                label: rotuloDoItem(previsao.itemId),
+                projetada: previsao.demandaProjetada,
+                media: previsao.mediaMovelSimples,
+              }))}
+            />
+          </View>
+        ) : null}
 
         {analysis.previsoes.length === 0 ? (
           <View style={styles.empty}>
@@ -76,12 +102,12 @@ export function IaScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, gap: 10 },
+  content: { padding: 16, gap: 10, paddingBottom: 16 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 4, 
   },
   title: { color: colors.text, fontSize: 18, fontWeight: '700' },
   card: {
@@ -92,13 +118,23 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   cardTitle: { color: colors.text, fontWeight: '600', fontSize: 14 },
-  bigScore: { color: colors.warning, fontSize: 34, fontWeight: '700', marginVertical: 6 },
+  bigScore: {
+    color: colors.warning,
+    fontSize: 34,
+    fontWeight: '700',
+    marginVertical: 6,
+  },
   caption: { marginTop: 6, color: colors.muted },
   statsRow: { flexDirection: 'row', gap: 8 },
   stat: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12 },
   statValue: { fontSize: 22, fontWeight: '700', color: '#111827' },
   statLabel: { color: '#64748B', fontSize: 11 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   cardText: { color: colors.muted, marginTop: 4, fontSize: 12 },
   empty: { alignItems: 'center', paddingVertical: 32 },
   emptyText: { color: colors.muted, fontSize: 12 },

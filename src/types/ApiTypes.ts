@@ -1,3 +1,5 @@
+export type StatusLogistico = 'PENDENTE' | 'EM_ROTA' | 'CONCLUIDA' | 'CANCELADA';
+
 export interface UsuarioResponse {
   id: number;
   primeiroNome: string;
@@ -55,7 +57,7 @@ export interface EntregaResponse {
   itemNome: string;
   hospitalDestinoNome: string;
   quantidade: number;
-  status: 'PENDENTE' | 'EM_ROTA' | 'CONCLUIDA' | 'CANCELADA' | 'ATRASADO';
+  status: StatusLogistico | 'ATRASADO';
   dataPrevista: string;
   transportadora: string;
 }
@@ -66,7 +68,7 @@ export interface TransferenciaResponse {
   hospitalOrigemNome: string;
   hospitalDestinoNome: string;
   quantidade: number;
-  status: 'PENDENTE' | 'EM_ROTA' | 'CONCLUIDA' | 'CANCELADA';
+  status: StatusLogistico;
   distanciaKm: number;
   tempoEstimadoMinutos: number;
   motivo: string;
@@ -145,4 +147,33 @@ export interface AnaliseInternaResponse {
   itensPrioritarios: number;
   previsoesGeradas: number;
   insights: InsightItemResponse[];
+}
+
+export interface HospitalResponse {
+  id: number;
+  nome: string;
+  endereco: string | null;
+  cidade: string | null;
+  estado: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+export interface ItemEstoqueRequest {
+  nome: string;
+  quantidadeAtual: number;
+  quantidadeMinima: number;
+  unidadeMedida?: string;
+  localArmazenamento?: string;
+  hospitalId: number;
+  validade?: string | null;
+  custoUnitario?: number | null;
+  altoCustoBaixaDemanda: boolean;
+}
+
+export interface HistoricoConsumoRequest {
+  itemEstoqueId: number;
+  hospitalId: number;
+  mesReferencia: string;
+  quantidadeConsumida: number;
 }

@@ -1,14 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
- import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AlertCard } from '../components/AlertCard';
 import { Badge } from '../components/Badge';
+import { ErrorBanner } from '../components/ErrorBanner';
 import { colors } from '../theme/colors';
 import { useApp } from '../context/AppContext';
 
 export function AlertasScreen() {
-  const { alerts } = useApp();
+  const { alerts, loading, error, clearError, refreshData } = useApp();
   const [filter, setFilter] = useState<'todos' | 'critico' | 'atencao' | 'info'>('todos');
 
   const filtered = useMemo(() => {
@@ -29,13 +30,23 @@ export function AlertasScreen() {
     variant: 'info' | 'critico' | 'atencao';
   }[] = [
     { key: 'todos', label: 'Todos', count: alerts.length, variant: 'info' },
-    { key: 'critico', label: 'Críticos', count: criticalCount, variant: 'critico' },
-    { key: 'atencao', label: 'Atenção', count: attentionCount, variant: 'atencao' },
+    {
+      key: 'critico',
+      label: 'Críticos',
+      count: criticalCount,
+      variant: 'critico',
+    },
+    {
+      key: 'atencao',
+      label: 'Atenção',
+      count: attentionCount,
+      variant: 'atencao',
+    },
     { key: 'info', label: 'Info', count: infoCount, variant: 'info' },
   ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>Alertas</Text>
         {criticalCount > 0 ? <Badge label={`${criticalCount} críticos`} variant="critico" /> : null}
@@ -61,7 +72,11 @@ export function AlertasScreen() {
         })}
       </View>
 
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshData} tintColor={colors.primarySoft} />}
+      >
+        <ErrorBanner message={error} onRetry={refreshData} onDismiss={clearError} />
         {filtered.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>✅</Text>
@@ -76,16 +91,11 @@ export function AlertasScreen() {
               title={alert.titulo}
               description={alert.descricao}
               variant={alert.prioridade === 'critico' ? 'critico' : alert.prioridade === 'atencao' ? 'atencao' : 'info'}
-              badgeLabel={
-                alert.tipo === 'estoque_critico'
-                  ? 'CRÍTICO'
-                  : alert.tipo === 'validade'
-                    ? 'VALIDADE'
-                    : alert.tipo === 'atraso_entrega'
-                      ? 'LOGÍSTICA'
-                      : 'AVISO'
-              }
-              actions={alert.acoes.map((action: string) => ({ label: action, primary: action === 'Repor' }))}
+              badgeLabel={alert.tipo === 'estoque_critico' ? 'CRÍTICO' : 'AVISO'}
+              actions={alert.acoes.map((action) => ({
+                label: action,
+                primary: action === 'Repor',
+              }))}
             />
           ))
         )}
@@ -139,7 +149,11 @@ const styles = StyleSheet.create({
   filterCountText: { color: colors.muted, fontSize: 10, fontWeight: '500' },
   filterCountTextActive: { color: colors.text },
   list: { padding: 16, gap: 8 },
-  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 48 },
+  empty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+  },
   emptyIcon: { fontSize: 48 },
   emptyText: { marginTop: 12, color: colors.muted },
 });

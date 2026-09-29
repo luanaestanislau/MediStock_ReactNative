@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthHeader } from '../components/AuthHeader';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 import { colors } from '../theme/colors';
-import { institutionalDomains } from '../data/mockData';
+import { resolveDomain } from '../config/domains';
 import { useApp } from '../context/AppContext';
 import type { RootStackParamList } from '../../App';
 
@@ -18,13 +18,7 @@ export function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [visible, setVisible] = useState(false);
 
-  const domain = useMemo(() => {
-    const value = email.trim().toLowerCase();
-    if (!value.includes('@')) return null;
-    const suffix = value.split('@').pop() ?? '';
-    const label = institutionalDomains[suffix as keyof typeof institutionalDomains];
-    return label ? { valid: true, label } : { valid: false, label: null };
-  }, [email]);
+  const domain = useMemo(() => resolveDomain(email), [email]);
 
   const onLogin = async () => {
     const success = await login(email.trim(), password);
@@ -44,7 +38,11 @@ export function LoginScreen({ navigation }: Props) {
 
         <View style={styles.content}>
           <View style={{ marginBottom: 32 }}>
-            <AuthHeader icon="business-outline" titulo="Acesso institucional" subtitulo="Use o e-mail fornecido pelo hospital" />
+            <AuthHeader
+              icon="business-outline"
+              titulo="Acesso institucional"
+              subtitulo="Use o e-mail fornecido pelo hospital"
+            />
           </View>
 
           <Text style={styles.label}>Email institucional</Text>
@@ -87,13 +85,17 @@ export function LoginScreen({ navigation }: Props) {
 
           <View style={{ flex: 1 }} />
 
-          <Pressable onPress={onLogin} disabled={loading} style={[styles.primaryButton, loading && styles.disabledButton]}>
+          <Pressable
+            onPress={onLogin}
+            disabled={loading}
+            style={[styles.primaryButton, loading && styles.disabledButton]}
+          >
             <Text style={styles.primaryButtonText}>Verificar e continuar</Text>
           </Pressable>
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       </SafeAreaView>
-     </LoadingOverlay>
+    </LoadingOverlay>
   );
 }
 
@@ -115,7 +117,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 28,
     paddingVertical: 0,
-    paddingBottom: 32, 
+    paddingBottom: 32,
   },
   label: {
     marginTop: 16,

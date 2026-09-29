@@ -1,9 +1,11 @@
 import React, { useMemo } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, Polyline, type Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Badge, SectionDivider } from '../components/Badge';
+import { ErrorBanner } from '../components/ErrorBanner';
+import { StatusActions } from '../components/StatusActions';
 import { useApp } from '../context/AppContext';
 import { colors } from '../theme/colors';
 
@@ -17,7 +19,12 @@ const SAO_PAULO_REGION: Region = {
 function makeRegion(hospitais: { latitude: number; longitude: number }[]): Region {
   if (hospitais.length === 0) return SAO_PAULO_REGION;
   if (hospitais.length === 1) {
-    return { latitude: hospitais[0].latitude, longitude: hospitais[0].longitude, latitudeDelta: 0.08, longitudeDelta: 0.08 };
+    return {
+      latitude: hospitais[0].latitude,
+      longitude: hospitais[0].longitude,
+      latitudeDelta: 0.08,
+      longitudeDelta: 0.08,
+    };
   }
 
   const latitudes = hospitais.map((hospital) => hospital.latitude);
@@ -45,6 +52,9 @@ export function LogisticaScreen() {
     refreshData,
     loading,
     error,
+    clearError,
+    updateDeliveryStatus,
+    updateTransferStatus,
   } = useApp();
   const region = useMemo(() => makeRegion(logisticsMap.hospitais), [logisticsMap.hospitais]);
   const suggestionsToMove = redistributionSuggestions.filter((suggestion) => suggestion.necessitaTransferencia);
@@ -54,29 +64,29 @@ export function LogisticaScreen() {
   );
 
   const confirmSuggestion = (itemEstoqueId: number, itemNome: string, destino: string) => {
-    Alert.alert(
-      'Confirmar transferência da IA',
-      `Criar uma transferência pendente de ${itemNome} para ${destino}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          onPress: async () => {
-            const created = await confirmRedistribution(itemEstoqueId);
-            if (!created) {
-              Alert.alert('Transferência não criada', 'Verifique a mensagem de erro e tente novamente.');
-            } else {
-              Alert.alert('Transferência criada', 'A rota, a Home e os Alertas já foram atualizados.');
-            }
-          },
+    Alert.alert('Confirmar transferência da IA', `Criar uma transferência pendente de ${itemNome} para ${destino}?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Confirmar',
+        onPress: async () => {
+          const created = await confirmRedistribution(itemEstoqueId);
+          if (!created) {
+            Alert.alert('Transferência não criada', 'Verifique a mensagem de erro e tente novamente.');
+          } else {
+            Alert.alert('Transferência criada', 'A rota, a Home e os Alertas já foram atualizados.');
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshData} tintColor={colors.primarySoft} />}
+      >
         <View style={styles.header}>
           <Text style={styles.title}>Logística</Text>
           <Badge label={`${logisticsMap.transferenciasAtivas.length} ativas`} variant="info" />
@@ -96,7 +106,10 @@ export function LogisticaScreen() {
             {logisticsMap.hospitais.map((hospital) => (
               <Marker
                 key={hospital.id}
-                coordinate={{ latitude: hospital.latitude, longitude: hospital.longitude }}
+                coordinate={{
+                  latitude: hospital.latitude,
+                  longitude: hospital.longitude,
+                }}
                 title={hospital.nome}
                 description={`${hospital.cidade ?? 'Rede MediStock'} · ${hospital.itensCriticos} item(ns) crítico(s)`}
                 pinColor={hospital.itensCriticos > 0 ? colors.danger : colors.primary}
@@ -106,8 +119,14 @@ export function LogisticaScreen() {
               <Polyline
                 key={transferencia.id}
                 coordinates={[
-                  { latitude: transferencia.origem.latitude, longitude: transferencia.origem.longitude },
-                  { latitude: transferencia.destino.latitude, longitude: transferencia.destino.longitude },
+                  {
+                    latitude: transferencia.origem.latitude,
+                    longitude: transferencia.origem.longitude,
+                  },
+                  {
+                    latitude: transferencia.destino.latitude,
+                    longitude: transferencia.destino.longitude,
+                  },
                 ]}
                 strokeColor={transferencia.geradoPorIa ? colors.primary : colors.info}
                 strokeWidth={4}
@@ -122,7 +141,10 @@ export function LogisticaScreen() {
                   key={`sugestao-${suggestion.itemEstoqueId}`}
                   coordinates={[
                     { latitude: origem.latitude, longitude: origem.longitude },
-                    { latitude: destino.latitude, longitude: destino.longitude },
+                    {
+                      latitude: destino.latitude,
+                      longitude: destino.longitude,
+                    },
                   ]}
                   strokeColor={colors.warning}
                   strokeWidth={3}
@@ -141,7 +163,9 @@ export function LogisticaScreen() {
         <SectionDivider label="Sugestões da IA" />
         {suggestionsToMove.length === 0 ? (
           <View style={styles.card}>
-            <Text style={styles.cardText}>Não há redistribuições necessárias para os insumos de alto custo neste momento.</Text>
+            <Text style={styles.cardText}>
+              Não há redistribuições necessárias para os insumos de alto custo neste momento.
+            </Text>
           </View>
         ) : (
           suggestionsToMove.map((suggestion) => (
@@ -154,31 +178,43 @@ export function LogisticaScreen() {
               <Text style={styles.cardText}>Para: {suggestion.hospitalIdealNome}</Text>
               {suggestion.rotaSugerida ? (
                 <Text style={styles.cardText}>
-                  Rota: {suggestion.rotaSugerida.distanciaKm.toFixed(1)} km · {Math.round(suggestion.rotaSugerida.tempoEstimadoMinutos)} min
+                  Rota: {suggestion.rotaSugerida.distanciaKm.toFixed(1)} km ·{' '}
+                  {Math.round(suggestion.rotaSugerida.tempoEstimadoMinutos)} min
                 </Text>
               ) : null}
               <Text style={styles.justification}>{suggestion.justificativaIA}</Text>
               <Pressable
                 style={styles.confirmButton}
-                onPress={() => confirmSuggestion(suggestion.itemEstoqueId, suggestion.itemNome, suggestion.hospitalIdealNome)}
+                onPress={() =>
+                  confirmSuggestion(suggestion.itemEstoqueId, suggestion.itemNome, suggestion.hospitalIdealNome)
+                }
               >
                 <Text style={styles.confirmButtonText}>Criar transferência</Text>
               </Pressable>
             </View>
           ))
         )}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <ErrorBanner message={error} onRetry={refreshData} onDismiss={clearError} />
 
         <SectionDivider label="Entregas" />
         {deliveries.map((delivery) => (
           <View key={delivery.id} style={styles.card}>
             <View style={styles.row}>
               <Text style={styles.cardTitle}>{delivery.codigo}</Text>
-              <Badge label={delivery.status.replace('_', ' ')} variant={delivery.status === 'em_rota' ? 'info' : 'normal'} />
+              <Badge
+                label={delivery.status.replace('_', ' ')}
+                variant={delivery.status === 'em_rota' ? 'info' : 'normal'}
+              />
             </View>
             <Text style={styles.cardText}>Fornecedor: {delivery.fornecedor}</Text>
             <Text style={styles.cardText}>Item: {delivery.item}</Text>
             <Text style={styles.cardText}>ETA: {delivery.eta ?? '--'}</Text>
+            <StatusActions
+              status={delivery.status}
+              disabled={loading}
+              subject={`a entrega ${delivery.codigo}`}
+              onChange={(to) => void updateDeliveryStatus(Number(delivery.id), to)}
+            />
           </View>
         ))}
 
@@ -187,11 +223,22 @@ export function LogisticaScreen() {
           <View key={transfer.id} style={styles.card}>
             <View style={styles.row}>
               <Text style={styles.cardTitle}>{transfer.item}</Text>
-              <Badge label={transfer.sugerida_por_ia ? 'IA' : transfer.status.toUpperCase()} variant={transfer.sugerida_por_ia ? 'ia' : 'info'} />
+              <Badge
+                label={transfer.sugeridaPorIa ? 'IA' : transfer.status.toUpperCase()}
+                variant={transfer.sugeridaPorIa ? 'ia' : 'info'}
+              />
             </View>
             <Text style={styles.cardText}>Origem: {transfer.origem}</Text>
             <Text style={styles.cardText}>Destino: {transfer.destino}</Text>
-            <Text style={styles.cardText}>Qtd: {transfer.quantidade} · Status: {transfer.status}</Text>
+            <Text style={styles.cardText}>
+              Qtd: {transfer.quantidade} · Status: {transfer.status}
+            </Text>
+            <StatusActions
+              status={transfer.status}
+              disabled={loading}
+              subject={`a transferência de ${transfer.item}`}
+              onChange={(to) => void updateTransferStatus(Number(transfer.id), to)}
+            />
           </View>
         ))}
       </ScrollView>
@@ -202,24 +249,76 @@ export function LogisticaScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, paddingBottom: 32 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   title: { color: colors.text, fontSize: 18, fontWeight: '700' },
-  mapCard: { backgroundColor: colors.card, borderRadius: 12, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
-  mapHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, padding: 12, alignItems: 'center' },
+  mapCard: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  mapHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    padding: 12,
+    alignItems: 'center',
+  },
   mapTitle: { color: colors.text, fontWeight: '700', fontSize: 15 },
   mapSubtitle: { color: colors.muted, fontSize: 11, marginTop: 2 },
   map: { height: 250, width: '100%' },
-  refreshButton: { borderWidth: 1, borderColor: colors.primary, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  refreshButton: {
+    borderWidth: 1,
+    borderColor: colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
   refreshText: { color: colors.primarySoft, fontWeight: '600', fontSize: 12 },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, padding: 10 },
   legendText: { color: colors.muted, fontSize: 10 },
-  card: { backgroundColor: colors.card, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, padding: 12, marginBottom: 10 },
-  suggestionCard: { backgroundColor: '#24213F', borderRadius: 12, borderWidth: 1, borderColor: colors.primary, padding: 12, marginBottom: 10 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: 12,
+    marginBottom: 10,
+  },
+  suggestionCard: {
+    backgroundColor: '#24213F',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    padding: 12,
+    marginBottom: 10,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   cardTitle: { color: colors.text, fontWeight: '600', fontSize: 14, flex: 1 },
   cardText: { color: colors.muted, marginTop: 4, fontSize: 12 },
-  justification: { color: colors.primarySoftBg, marginTop: 10, fontSize: 12, lineHeight: 17 },
-  confirmButton: { backgroundColor: colors.primary, alignItems: 'center', borderRadius: 8, marginTop: 12, paddingVertical: 10 },
+  justification: {
+    color: colors.primarySoftBg,
+    marginTop: 10,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  confirmButton: {
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    borderRadius: 8,
+    marginTop: 12,
+    paddingVertical: 10,
+  },
   confirmButtonText: { color: colors.text, fontWeight: '700', fontSize: 13 },
-  error: { color: colors.dangerSoft, marginTop: 4, fontSize: 12 },
 });

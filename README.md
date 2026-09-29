@@ -1,56 +1,76 @@
-# Welcome to your Expo app 👋
+# MediStock — App Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicativo React Native (Expo + TypeScript) para gestão de estoque hospitalar: alertas, estoque, previsão de demanda com IA e logística entre hospitais. Consome a API do [MediStock_Back](https://github.com/luanaestanislau/MediStock_Back).
 
-## Get started
+## Funcionalidades
 
-1. Install dependencies
+| Tela | O que faz |
+| --- | --- |
+| Login / Cadastro / Matrícula | Acesso com e-mail institucional (JWT). A sessão fica salva e é restaurada ao reabrir o app |
+| Home | Indicadores, alertas ativos, entregas e transferências |
+| Alertas | Lista com filtro por prioridade |
+| Estoque | Busca, filtro por nível, **cadastro, edição e exclusão** de itens e **registro de consumo** mensal |
+| IA | Score de otimização, **gráfico de demanda projetada x média móvel** e sugestão de compra |
+| Logística | Mapa da rede, sugestões de redistribuição da IA e **atualização de status** de entregas e transferências |
 
-   ```bash
-   npm install
-   ```
+Todas as listas aceitam *pull-to-refresh* e mostram erros de carregamento com o botão "Tentar novamente".
 
-2. Start the app
+## Como executar
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Pré-requisitos: Node 20+, o backend em execução e o celular na **mesma rede Wi-Fi** do computador.
 
 ```bash
-npm run reset-project
+npm install
+cp .env.example .env      # ajuste EXPO_PUBLIC_API_URL
+npx expo start -c         # -c limpa o cache ao mudar o .env
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+No `.env`, use o IP do computador, não `localhost`:
 
-### Other setup steps
+```properties
+EXPO_PUBLIC_API_URL=http://192.168.0.10:8080/api
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Descubra o IP com `ipconfig getifaddr en0` (Mac) ou `ipconfig` (Windows). Abra o app pelo Expo Go (QR code). Se aparecer "Não foi possível conectar à API", teste `http://SEU_IP:8080/docs` no navegador do celular e confira o firewall.
 
-## Learn more
+## Scripts
 
-To learn more about developing your project with Expo, look at the following resources:
+| Comando | Função |
+| --- | --- |
+| `npm test` | Testes unitários (Jest) |
+| `npm run typecheck` | Verificação de tipos (TypeScript) |
+| `npm run lint` | ESLint (Expo) |
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Estrutura
 
-## Join the community
+```text
+App.tsx                  Navegação (pilha de autenticação + abas)
+src/
+  config/                Domínios institucionais aceitos
+  context/
+    AuthContext.tsx      Sessão: login, cadastro, logout, restauração e expiração (401)
+    DataContext.tsx      Dados da API e ações (estoque, consumo, logística, IA)
+    AppContext.tsx       Provedores + hook useApp() usado pelas telas
+  services/
+    api.ts               Cliente HTTP (axios) com token e tratamento de 401
+    domainServices.ts    Chamadas tipadas por domínio (auth, estoque, logística, IA...)
+    mappers.ts           Resposta da API → modelo das telas
+    session.ts           Persistência segura do token
+  screens/               Telas
+  components/            Componentes reutilizáveis (modais, gráfico, banners)
+  types/                 ApiTypes (API) e ui (telas)
+  utils/                 Funções puras testadas (filtros, erros, status)
+__tests__/               Testes unitários
+```
 
-Join our community of developers creating universal apps.
+## Decisões de arquitetura
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- **Camadas separadas:** as telas usam apenas `useApp()`. As chamadas HTTP ficam em `domainServices.ts`, a conversão de dados em `mappers.ts` e as regras puras em `utils/`, o que as deixa testáveis sem renderizar telas.
+- **Dois contextos:** sessão (`AuthContext`) e dados (`DataContext`) mudam por motivos diferentes. Os dados são recriados a cada login e logout, então nada da sessão anterior permanece.
+- **Sessão segura:** o token vai para o `expo-secure-store` (Keychain/Keystore). Um 401 durante o uso encerra a sessão com aviso.
+- **Tipagem ponta a ponta:** os tipos de requisição e resposta espelham os DTOs do backend.
+
+## Backend
+
+Consulte o README do backend para subir a API e o Oracle. O e-mail de cadastro precisa ser de um domínio permitido (`fiap.com.br`, `hc.unicamp.br`, `hc.usp.br`, `einstein.br`, `hospital.gov.br`, `saude.sp.gov.br`) e a senha precisa ter no mínimo 8 caracteres.
+

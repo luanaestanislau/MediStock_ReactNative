@@ -1,19 +1,21 @@
 import React, { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AlertCard } from '../components/AlertCard';
 import { AiBadge, Badge } from '../components/Badge';
+import { ErrorBanner } from '../components/ErrorBanner';
 import { useApp } from '../context/AppContext';
 import { colors } from '../theme/colors';
 
 export function HomeScreen() {
-  const { user, alerts, items, analysis, deliveries, transfers, logout, refreshData } = useApp();
+  const { user, alerts, items, analysis, deliveries, transfers, logout, refreshData, loading, error, clearError } =
+    useApp();
   const [profileOpen, setProfileOpen] = useState(false);
 
   const initials = useMemo(() => {
     const parts = user?.nome?.split(' ').slice(0, 2) ?? [];
-    return parts.map((part: string) => part[0]).join('') || 'AS';
+    return parts.map((part) => part[0]).join('') || 'AS';
   }, [user?.nome]);
 
   const criticalCount = alerts.filter((alert) => alert.prioridade === 'critico').length;
@@ -21,11 +23,13 @@ export function HomeScreen() {
   const inRoute = deliveries.filter((delivery) => delivery.status === 'em_rota').length;
   const delayed = deliveries.filter((delivery) => delivery.status === 'atrasado').length;
   const inRouteFirst = deliveries.find((delivery) => delivery.status === 'em_rota');
-  const activeTransfers = transfers.filter((transfer) => transfer.status === 'pendente' || transfer.status === 'em_rota');
+  const activeTransfers = transfers.filter(
+    (transfer) => transfer.status === 'pendente' || transfer.status === 'em_rota',
+  );
   const firstActiveTransfer = activeTransfers[0];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>MediStock</Text>
         <View style={styles.headerActions}>
@@ -36,7 +40,11 @@ export function HomeScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshData} tintColor={colors.primarySoft} />}
+      >
+        <ErrorBanner message={error} onRetry={refreshData} onDismiss={clearError} />
         <View style={styles.sectionTitleRow}>
           <Text style={styles.sectionTitle}>Alertas ativos</Text>
           <Badge label={`${criticalCount} críticos`} variant="critico" />
@@ -50,7 +58,10 @@ export function HomeScreen() {
             description={alert.descricao}
             variant={alert.prioridade === 'critico' ? 'critico' : 'atencao'}
             badgeLabel={alert.prioridade.toUpperCase()}
-            actions={alert.acoes.map((action: string) => ({ label: action, primary: action === 'Repor' }))}
+            actions={alert.acoes.map((action) => ({
+              label: action,
+              primary: action === 'Repor',
+            }))}
             progress={null}
           />
         ))}
@@ -71,8 +82,12 @@ export function HomeScreen() {
             <Text style={styles.cardTitle}>IA Interna</Text>
             <AiBadge />
           </View>
-          <Text style={styles.cardText}>{items.filter((item) => item.tipo === 'essencial_baixa_demanda').length} itens prioritários para armazenagem</Text>
-          <Text style={[styles.cardText, { color: colors.warning, marginTop: 4 }]}>Otimização interna: {analysis.scoreInterno}/100</Text>
+          <Text style={styles.cardText}>
+            {items.filter((item) => item.tipo === 'essencial_baixa_demanda').length} itens prioritários para armazenagem
+          </Text>
+          <Text style={[styles.cardText, { color: colors.warning, marginTop: 4 }]}>
+            Otimização interna: {analysis.scoreInterno}/100
+          </Text>
         </View>
 
         <View style={styles.card}>
@@ -104,7 +119,7 @@ export function HomeScreen() {
       <Modal visible={profileOpen} transparent animationType="slide" onRequestClose={() => setProfileOpen(false)}>
         <View style={styles.modalBackdrop}>
           <Pressable style={styles.sheet} onPress={() => setProfileOpen(false)}>
-            <Pressable style={styles.sheetHandle}  onPress={() => setProfileOpen(false)}/>
+            <Pressable style={styles.sheetHandle} onPress={() => setProfileOpen(false)} />
             <View style={styles.profileRow}>
               <View style={styles.profileAvatar}>
                 <Text style={styles.profileAvatarText}>{initials}</Text>
@@ -112,12 +127,16 @@ export function HomeScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.profileName}>{user?.nome ?? 'Usuário'}</Text>
                 <Text style={styles.profileSmall}>{user?.cargo ?? ''}</Text>
-                <Text style={styles.profileSmall}>{user?.hospital ?? ''} · {user?.registroProfissional ?? ''}</Text>
+                <Text style={styles.profileSmall}>
+                  {user?.hospital ?? ''} · {user?.registroProfissional ?? ''}
+                </Text>
               </View>
             </View>
 
             {['Notificações e alertas', 'Auditoria de IA', 'Controle de acesso (LGPD)'].map((item) => (
-              <Text key={item} style={styles.profileItem}>{item}</Text>
+              <Text key={item} style={styles.profileItem}>
+                {item}
+              </Text>
             ))}
 
             <View style={styles.profileItemRow}>
